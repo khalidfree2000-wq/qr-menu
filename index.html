@@ -50,8 +50,19 @@ input,select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;bac
 .sw i::after{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
 .sw input:checked+i{background:var(--ok)}.sw input:checked+i::after{right:23px}
 .top{display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--brand);color:#fff}
-.top b{font-size:17px}.top .btn{background:none;color:#fff;border-color:#fff4}
+.top b{font-size:17px}.brand{display:flex;align-items:center;gap:10px;min-width:0}.top .logo{width:40px;height:40px;border-radius:10px}.layout{display:block}.top .btn{background:none;color:#fff;border-color:#fff4}
 #qr{background:#fff;padding:14px;border-radius:14px;display:inline-block;line-height:0}
+@media(min-width:900px){
+#app.wide{max-width:none}
+.wide .top{padding:14px 32px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.wide .top b{font-size:22px}.wide .top .logo{width:48px;height:48px}.wide .top .btn{padding:9px 18px;font-size:14px}
+.layout{display:grid;grid-template-columns:250px 1fr;align-items:start}
+.layout .tabs{flex-direction:column;overflow:visible;padding:20px 16px;gap:8px;background:var(--card);border-inline-end:1px solid var(--line);position:sticky;top:0;min-height:calc(100vh - 76px)}
+.layout .tabs button{text-align:start;border-radius:12px;padding:12px 16px;font-size:15px}
+.wide .own,.layout .own{padding:28px 36px;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));align-content:start;gap:14px}
+.wide .own>.add,.wide .own>.note,.wide .own>.full{grid-column:1/-1}
+.wide .own>.add{max-width:560px}
+}
 #t{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;padding:9px 18px;border-radius:99px;font-size:14px;opacity:0;transition:.25s;pointer-events:none}#t.on{opacity:1}
 </style>
 </head>
@@ -118,16 +129,16 @@ async function customer(slug){
 
 /* ---------- الدخول ---------- */
 function login(){
-  A.innerHTML='<div class="own"><h2>تسجيل الدخول</h2><input id="e" placeholder="اسم المستخدم أو الإيميل" dir="ltr" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة السر"><button class="btn pri" id="go">دخول</button></div>';
+  A.className="";A.innerHTML='<div class="own"><h2>تسجيل الدخول</h2><input id="e" placeholder="اسم المستخدم أو الإيميل" dir="ltr" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة السر"><button class="btn pri" id="go">دخول</button></div>';
   A.onclick=null;
   $("#go").onclick=()=>signInWithEmailAndPassword(auth,toEm($("#e").value),$("#p").value).catch(()=>toast("بيانات الدخول غير صحيحة"));
 }
-const top=(t,back)=>`<div class="top"><b>${esc(t)}</b><span>${back?'<button class="btn" data-a="back">رجوع</button> ':""}<button class="btn" data-a="out">خروج</button></span></div>`;
+const top=(t,back,lg)=>`<div class="top"><span class="brand">${lg?`<img class="logo" src="${lg}" alt="">`:""}<b>${esc(t)}</b></span><span>${back?'<button class="btn" data-a="back">رجوع</button> ':""}<button class="btn" data-a="out">خروج</button></span></div>`;
 
 /* ---------- المصمم ---------- */
 async function admin(){
   const s=await getDocs(collection(db,"restaurants"));
-  A.innerHTML=top("لوحة المصمم")+`<div class="own"><div class="add"><h3>مطعم جديد</h3><input id="n" placeholder="اسم المطعم"><input id="s" placeholder="الرابط بالإنجليزي مثل pizza-ali" dir="ltr"><input id="e" placeholder="اسم المستخدم لصاحب المطعم (إنجليزي) مثل: alreem" dir="ltr" autocapitalize="none"><input id="p" placeholder="كلمة سر (6 أحرف فأكثر)" dir="ltr"><button class="btn pri" data-a="mk">إنشاء المطعم</button></div>
+  A.className="wide";A.innerHTML=top("لوحة المصمم",false,"icon-192.png")+`<div class="own"><div class="add"><h3>مطعم جديد</h3><input id="n" placeholder="اسم المطعم"><input id="s" placeholder="الرابط بالإنجليزي مثل pizza-ali" dir="ltr"><input id="e" placeholder="اسم المستخدم لصاحب المطعم (إنجليزي) مثل: alreem" dir="ltr" autocapitalize="none"><input id="p" placeholder="كلمة سر (6 أحرف فأكثر)" dir="ltr"><button class="btn pri" data-a="mk">إنشاء المطعم</button></div>
   ${s.docs.map(d=>`<div class="item"><div class="info"><b>${esc(d.data().name)}</b><span class="note" dir="ltr">?r=${esc(d.data().slug)}</span></div><button class="btn" data-a="mg" data-id="${d.id}">إدارة</button></div>`).join("")}</div>`;
   A.onclick=async e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a;
     if(a=="out")signOut(auth);
@@ -142,6 +153,7 @@ async function admin(){
 
 /* ---------- صاحب المطعم ---------- */
 function owner(rid,adm){
+  A.className="wide";
   let R={},items=[],orders=[],tab="i",img=null,firstO=true;const rr=doc(db,"restaurants",rid);
   const U=[onSnapshot(rr,d=>{R=d.data()||{};draw()}),
     onSnapshot(collection(rr,"items"),sn=>{items=sn.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts||0)-(b.ts||0));draw()}),
@@ -149,15 +161,18 @@ function owner(rid,adm){
   const url=()=>location.origin+location.pathname+"?r="+R.slug;
   function draw(){
     const nw=orders.filter(o=>!o.st).length;
-    let h=top(R.name||"...",adm)+`<div class="tabs">${[["i","الوجبات"],["o","الطلبات"+(nw?" ("+nw+")":"")],["q","الرابط وQR"]].map(([k,v])=>`<button data-a="tab" data-v="${k}" class="${tab==k?"on":""}">${v}</button>`).join("")}</div><div class="own">`;
+    let h=top(R.name||"...",adm,R.logo)+`<div class="layout"><div class="tabs">${[["i","🍽️ الوجبات"],["o","🛎️ الطلبات"+(nw?" ("+nw+")":"")],["q","🔗 الرابط وQR"],["s","⚙️ الإعدادات"]].map(([k,v])=>`<button data-a="tab" data-v="${k}" class="${tab==k?"on":""}">${v}</button>`).join("")}</div><div class="own">`;
     if(tab=="i"){
-      h+=`<div class="add"><h3>هوية المطعم</h3><input data-a="rn" value="${esc(R.name)}"><div class="row"><label class="btn">🖼️ رفع الشعار<input type="file" accept="image/*" data-a="lg" hidden></label>${R.logo?`<img class="logo" src="${R.logo}" alt="">`:'<span class="note">لا يوجد شعار</span>'}</div></div>`;
       h+=items.map(i=>`<div class="item" style="align-items:flex-start">${pic(i)}<div class="info"><b>${esc(i.name)}</b><span class="note">${esc(i.cat)}</span><div class="row"><input type="number" min="0" value="${i.price}" data-a="p" data-id="${i.id}"><span class="cur">${CUR}</span></div><div class="row"><label class="sw"><input type="checkbox" data-a="t" data-id="${i.id}" ${i.ok?"checked":""}><i></i></label><span>${i.ok?"متوفر":"غير متوفر"}</span></div><div class="row"><label class="btn">📷 تغيير الصورة<input type="file" accept="image/*" data-a="f" data-id="${i.id}" hidden></label><button class="btn" data-a="del" data-id="${i.id}">حذف</button></div></div></div>`).join("");
       h+=`<div class="add"><h3>إضافة وجبة</h3><input id="in" placeholder="اسم الوجبة"><div class="row"><input id="ip" type="number" min="0" placeholder="السعر"><input id="ic" list="cl" placeholder="القسم (مثل: سندويشات)"><datalist id="cl">${[...new Set(items.map(i=>i.cat))].map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div><div class="row"><label class="btn">📷 اختر صورة<input type="file" accept="image/*" data-a="nf" hidden></label><span class="note" id="nfn">بدون صورة</span></div><button class="btn pri" data-a="add">حفظ الوجبة</button></div>`;
     }
+    if(tab=="s"){
+      h+=`<div class="add"><h3>هوية المطعم</h3><input data-a="rn" value="${esc(R.name)}"><div class="row"><label class="btn">🖼️ رفع الشعار<input type="file" accept="image/*" data-a="lg" hidden></label>${R.logo?`<img class="logo" src="${R.logo}" alt="">`:'<span class="note">لا يوجد شعار</span>'}</div></div>`;
+      h+=`<p class="note">الاسم والشعار يظهران في أعلى قائمة الزبائن وفي الشريط العلوي للوحة التحكم.</p>`;
+    }
     if(tab=="o")h+='<p class="note">🔔 اترك هذه الصفحة مفتوحة ليصدر تنبيه صوتي عند وصول طلب جديد.</p>'+(orders.length?orders.map(o=>`<div class="item" style="align-items:flex-start"><div class="pic" style="background:var(--gold);font-weight:800;font-size:22px;color:#12302F">${o.n}</div><div class="info"><b>${o.tb?"طاولة "+esc(o.tb):"بدون طاولة"}</b><span class="note">${o.lines.map(esc).join("، ")}</span><br><span class="price">${fmt(o.t)} <span class="cur">${CUR}</span></span><div class="row"><span class="tag ${o.st?"yes":"no"}">${o.st?"جاهز":"جديد"}</span>${o.st?"":`<button class="btn pri" data-a="rd" data-id="${o.id}">تم التجهيز</button>`}</div></div></div>`).join(""):'<p class="note">لا توجد طلبات بعد.</p>');
-    if(tab=="q")h+=`<div style="text-align:center"><div id="qr"></div><p class="note" dir="ltr" style="word-break:break-all;margin:12px 0">${esc(url())}</p><button class="btn pri" data-a="dl">تحميل صورة QR للطباعة</button></div>`;
-    A.innerHTML=h+"</div>";
+    if(tab=="q")h+=`<div class="full" style="text-align:center"><div id="qr"></div><p class="note" dir="ltr" style="word-break:break-all;margin:12px 0">${esc(url())}</p><button class="btn pri" data-a="dl">تحميل صورة QR للطباعة</button></div>`;
+    A.innerHTML=h+"</div></div>";
     if(tab=="q")new QRCode($("#qr"),{text:url(),width:240,height:240,correctLevel:QRCode.CorrectLevel.M});
   }
   A.onchange=e=>{const t=e.target,a=t.dataset.a,id=t.dataset.id,f=t.files&&t.files[0];
