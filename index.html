@@ -65,6 +65,10 @@ const cfg={apiKey:"AIzaSyBQvXih9GJSfHfgaQY6IXqU2Oj0PVl6Oww",authDomain:"qr-menu-
 const app=initializeApp(cfg),auth=getAuth(app),db=getFirestore(app);
 const $=s=>document.querySelector(s),A=$("#app");
 const fmt=n=>Number(n).toLocaleString("en-US");
+const toEm=u=>{u=u.trim().toLowerCase();return u.includes("@")?u:u+"@qrmenu.app"};
+let ac=null;
+document.addEventListener("click",()=>{try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();ac.resume()}catch(e){}});
+const beep=()=>{try{if(!ac)return;[0,.5,1].forEach(t=>[880,1175].forEach((f,k)=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const st=ac.currentTime+t+k*.18;g.gain.setValueAtTime(.35,st);g.gain.exponentialRampToValueAtTime(.001,st+.16);o.start(st);o.stop(st+.17)}));navigator.vibrate&&navigator.vibrate([300,150,300])}catch(e){}};
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const toast=t=>{const x=$("#t");x.textContent=t;x.classList.add("on");setTimeout(()=>x.classList.remove("on"),1500)};
 const rs=(f,w,cb)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const s=Math.min(1,w/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.7))};i.src=r.result};r.readAsDataURL(f)};
@@ -109,22 +113,22 @@ async function customer(slug){
 
 /* ---------- الدخول ---------- */
 function login(){
-  A.innerHTML='<div class="own"><h2>تسجيل الدخول</h2><input id="e" type="email" placeholder="الإيميل"><input id="p" type="password" placeholder="كلمة السر"><button class="btn pri" id="go">دخول</button></div>';
+  A.innerHTML='<div class="own"><h2>تسجيل الدخول</h2><input id="e" placeholder="اسم المستخدم أو الإيميل" dir="ltr" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة السر"><button class="btn pri" id="go">دخول</button></div>';
   A.onclick=null;
-  $("#go").onclick=()=>signInWithEmailAndPassword(auth,$("#e").value.trim(),$("#p").value).catch(()=>toast("بيانات الدخول غير صحيحة"));
+  $("#go").onclick=()=>signInWithEmailAndPassword(auth,toEm($("#e").value),$("#p").value).catch(()=>toast("بيانات الدخول غير صحيحة"));
 }
 const top=(t,back)=>`<div class="top"><b>${esc(t)}</b><span>${back?'<button class="btn" data-a="back">رجوع</button> ':""}<button class="btn" data-a="out">خروج</button></span></div>`;
 
 /* ---------- المصمم ---------- */
 async function admin(){
   const s=await getDocs(collection(db,"restaurants"));
-  A.innerHTML=top("لوحة المصمم")+`<div class="own"><div class="add"><h3>مطعم جديد</h3><input id="n" placeholder="اسم المطعم"><input id="s" placeholder="الرابط بالإنجليزي مثل pizza-ali" dir="ltr"><input id="e" type="email" placeholder="إيميل صاحب المطعم" dir="ltr"><input id="p" placeholder="كلمة سر (6 أحرف فأكثر)" dir="ltr"><button class="btn pri" data-a="mk">إنشاء المطعم</button></div>
+  A.innerHTML=top("لوحة المصمم")+`<div class="own"><div class="add"><h3>مطعم جديد</h3><input id="n" placeholder="اسم المطعم"><input id="s" placeholder="الرابط بالإنجليزي مثل pizza-ali" dir="ltr"><input id="e" placeholder="اسم المستخدم لصاحب المطعم (إنجليزي) مثل: alreem" dir="ltr" autocapitalize="none"><input id="p" placeholder="كلمة سر (6 أحرف فأكثر)" dir="ltr"><button class="btn pri" data-a="mk">إنشاء المطعم</button></div>
   ${s.docs.map(d=>`<div class="item"><div class="info"><b>${esc(d.data().name)}</b><span class="note" dir="ltr">?r=${esc(d.data().slug)}</span></div><button class="btn" data-a="mg" data-id="${d.id}">إدارة</button></div>`).join("")}</div>`;
   A.onclick=async e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a;
     if(a=="out")signOut(auth);
     if(a=="mg")owner(b.dataset.id,true);
-    if(a=="mk"){const n=$("#n").value.trim(),sl=$("#s").value.trim().toLowerCase(),em=$("#e").value.trim(),pw=$("#p").value;
-      if(!n||!/^[a-z0-9-]+$/.test(sl)||!em||pw.length<6)return toast("راجع البيانات (الرابط حروف إنجليزية وأرقام فقط)");
+    if(a=="mk"){const n=$("#n").value.trim(),sl=$("#s").value.trim().toLowerCase(),em=toEm($("#e").value),pw=$("#p").value;
+      if(!n||!/^[a-z0-9-]+$/.test(sl)||!/^([a-z0-9._-]{3,}|\S+@\S+)$/i.test($("#e").value.trim())||pw.length<6)return toast("راجع البيانات: الرابط واسم المستخدم حروف إنجليزية وأرقام فقط (3 أحرف على الأقل)");
       if(!(await getDocs(query(collection(db,"restaurants"),where("slug","==",sl)))).empty)return toast("هذا الرابط مستخدم");
       try{const a2=getAuth(initializeApp(cfg,"s"+Date.now())),c=await createUserWithEmailAndPassword(a2,em,pw);
         await setDoc(doc(db,"restaurants",c.user.uid),{name:n,slug:sl,logo:""});await signOut(a2);toast("تم إنشاء المطعم");admin()}
@@ -133,10 +137,10 @@ async function admin(){
 
 /* ---------- صاحب المطعم ---------- */
 function owner(rid,adm){
-  let R={},items=[],orders=[],tab="i",img=null;const rr=doc(db,"restaurants",rid);
+  let R={},items=[],orders=[],tab="i",img=null,firstO=true;const rr=doc(db,"restaurants",rid);
   const U=[onSnapshot(rr,d=>{R=d.data()||{};draw()}),
     onSnapshot(collection(rr,"items"),sn=>{items=sn.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts||0)-(b.ts||0));draw()}),
-    onSnapshot(query(collection(rr,"orders"),orderBy("ts","desc")),sn=>{orders=sn.docs.map(d=>({id:d.id,...d.data()}));draw()})];
+    onSnapshot(query(collection(rr,"orders"),orderBy("ts","desc")),sn=>{if(!firstO)sn.docChanges().forEach(c=>{if(c.type=="added"&&!c.doc.data().st){beep();toast("🔔 طلب جديد رقم "+c.doc.data().n)}});firstO=false;orders=sn.docs.map(d=>({id:d.id,...d.data()}));draw()})];
   const url=()=>location.origin+location.pathname+"?r="+R.slug;
   function draw(){
     const nw=orders.filter(o=>!o.st).length;
@@ -146,7 +150,7 @@ function owner(rid,adm){
       h+=items.map(i=>`<div class="item" style="align-items:flex-start">${pic(i)}<div class="info"><b>${esc(i.name)}</b><span class="note">${esc(i.cat)}</span><div class="row"><input type="number" min="0" value="${i.price}" data-a="p" data-id="${i.id}"><span class="cur">${CUR}</span></div><div class="row"><label class="sw"><input type="checkbox" data-a="t" data-id="${i.id}" ${i.ok?"checked":""}><i></i></label><span>${i.ok?"متوفر":"غير متوفر"}</span></div><div class="row"><label class="btn">📷 تغيير الصورة<input type="file" accept="image/*" data-a="f" data-id="${i.id}" hidden></label><button class="btn" data-a="del" data-id="${i.id}">حذف</button></div></div></div>`).join("");
       h+=`<div class="add"><h3>إضافة وجبة</h3><input id="in" placeholder="اسم الوجبة"><div class="row"><input id="ip" type="number" min="0" placeholder="السعر"><input id="ic" list="cl" placeholder="القسم (مثل: سندويشات)"><datalist id="cl">${[...new Set(items.map(i=>i.cat))].map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div><div class="row"><label class="btn">📷 اختر صورة<input type="file" accept="image/*" data-a="nf" hidden></label><span class="note" id="nfn">بدون صورة</span></div><button class="btn pri" data-a="add">حفظ الوجبة</button></div>`;
     }
-    if(tab=="o")h+=orders.length?orders.map(o=>`<div class="item" style="align-items:flex-start"><div class="pic" style="background:var(--gold);font-weight:800;font-size:22px;color:#12302F">${o.n}</div><div class="info"><b>${o.tb?"طاولة "+esc(o.tb):"بدون طاولة"}</b><span class="note">${o.lines.map(esc).join("، ")}</span><br><span class="price">${fmt(o.t)} <span class="cur">${CUR}</span></span><div class="row"><span class="tag ${o.st?"yes":"no"}">${o.st?"جاهز":"جديد"}</span>${o.st?"":`<button class="btn pri" data-a="rd" data-id="${o.id}">تم التجهيز</button>`}</div></div></div>`).join(""):'<p class="note">لا توجد طلبات بعد.</p>';
+    if(tab=="o")h+='<p class="note">🔔 اترك هذه الصفحة مفتوحة ليصدر تنبيه صوتي عند وصول طلب جديد.</p>'+(orders.length?orders.map(o=>`<div class="item" style="align-items:flex-start"><div class="pic" style="background:var(--gold);font-weight:800;font-size:22px;color:#12302F">${o.n}</div><div class="info"><b>${o.tb?"طاولة "+esc(o.tb):"بدون طاولة"}</b><span class="note">${o.lines.map(esc).join("، ")}</span><br><span class="price">${fmt(o.t)} <span class="cur">${CUR}</span></span><div class="row"><span class="tag ${o.st?"yes":"no"}">${o.st?"جاهز":"جديد"}</span>${o.st?"":`<button class="btn pri" data-a="rd" data-id="${o.id}">تم التجهيز</button>`}</div></div></div>`).join(""):'<p class="note">لا توجد طلبات بعد.</p>');
     if(tab=="q")h+=`<div style="text-align:center"><div id="qr"></div><p class="note" dir="ltr" style="word-break:break-all;margin:12px 0">${esc(url())}</p><button class="btn pri" data-a="dl">تحميل صورة QR للطباعة</button></div>`;
     A.innerHTML=h+"</div>";
     if(tab=="q")new QRCode($("#qr"),{text:url(),width:240,height:240,correctLevel:QRCode.CorrectLevel.M});
