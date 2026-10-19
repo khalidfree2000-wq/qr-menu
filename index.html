@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>المنيو الإلكتروني</title>
+<meta name="theme-color" content="#0F3D3E">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="لوحة المطعم">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap">
 <style>
 :root{--bg:#F6F7F4;--card:#fff;--ink:#12302F;--mut:#6B7B79;--brand:#0F3D3E;--gold:#F2A900;--red:#B3261E;--line:#DDE3E0;--ok:#1E7A4C;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -75,6 +79,7 @@ const rs=(f,w,cb)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i
 const pic=(i,o)=>`<div class="pic ${o?"out":""}" style="${i.img?`background-image:url(${i.img})`:""}">${i.img?"":"🍽️"}</div>`;
 const q=new URLSearchParams(location.search);
 
+if(!q.get("r")){const l=document.createElement("link");l.rel="manifest";l.href="manifest.json";document.head.appendChild(l);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{})}
 if(q.get("r"))customer(q.get("r"));
 else onAuthStateChanged(auth,u=>u?(u.email===ADMIN?admin():owner(u.uid,false)):login());
 
