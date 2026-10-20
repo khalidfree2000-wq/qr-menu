@@ -15,7 +15,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:Cairo,Tahoma,sans-serif;display:flex;justify-content:center}
 #app{width:100%;max-width:480px;min-height:100vh}
-.hero{background:var(--brand);color:#fff;padding:22px 16px 18px;display:flex;gap:12px;align-items:center}
+.hero{background:var(--bar,#0F3D3E);color:var(--bart,#fff);padding:22px 16px 18px;display:flex;gap:12px;align-items:center}
 .hero h1{margin:0;font-size:26px;font-weight:800}.hero p{margin:4px 0 0;opacity:.8;font-size:13px}
 .logo{width:56px;height:56px;border-radius:12px;object-fit:cover;background:#fff;flex:none}
 .chips,.tabs{display:flex;gap:8px;overflow-x:auto;padding:12px 12px 4px}
@@ -49,9 +49,11 @@ input,select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;bac
 .sw i{position:absolute;inset:0;background:var(--line);border-radius:99px;transition:.2s}
 .sw i::after{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
 .sw input:checked+i{background:var(--ok)}.sw input:checked+i::after{right:23px}
-.top{display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--brand);color:#fff}
-.top b{font-size:17px}.brand{display:flex;align-items:center;gap:10px;min-width:0}.top .logo{width:40px;height:40px;border-radius:10px}.layout{display:block}.top .btn{background:none;color:#fff;border-color:#fff4}
+.top{display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bar,#B71C1C);color:var(--bart,#FFD60A)}
+.top b{font-size:17px}.brand{display:flex;align-items:center;gap:10px;min-width:0}.top .logo{width:40px;height:40px;border-radius:10px}.layout{display:block}.top .btn{background:none;color:var(--bart,#FFD60A);border-color:currentColor}
 #qr{background:#fff;padding:14px;border-radius:14px;display:inline-block;line-height:0}
+.pv{padding:14px;border-radius:10px;font-weight:800;text-align:center}
+input[type=color]{width:56px;height:36px;padding:2px;vertical-align:middle;cursor:pointer}
 .tb{width:100%;border-collapse:collapse;font-size:14px}.tb th,.tb td{border:1px solid var(--line);padding:7px 10px;text-align:right}.tb th{background:var(--bg)}.tb tfoot td{font-weight:800;background:var(--bg)}
 details{border:1px solid var(--line);border-radius:10px;padding:8px 10px}summary{cursor:pointer;font-weight:600}
 @media(min-width:900px){
@@ -91,6 +93,21 @@ const toast=t=>{const x=$("#t");x.textContent=t;x.classList.add("on");setTimeout
 const rs=(f,w,cb)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const s=Math.min(1,w/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.7))};i.src=r.result};r.readAsDataURL(f)};
 const pic=(i,o)=>`<div class="pic ${o?"out":""}" style="${i.img?`background-image:url(${i.img})`:""}">${i.img?"":"🍽️"}</div>`;
 const q=new URLSearchParams(location.search);
+const applyTheme=R=>{const s=document.documentElement.style;R.c1?s.setProperty("--bar",R.c1):s.removeProperty("--bar");R.c2?s.setProperty("--bart",R.c2):s.removeProperty("--bart");const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=R.c1||"#0F3D3E"};
+const resetTheme=()=>applyTheme({});
+const fromLogo=src=>new Promise(res=>{const im=new Image();im.onerror=()=>res(null);im.onload=()=>{
+  const c=document.createElement("canvas");c.width=c.height=40;const x=c.getContext("2d");x.drawImage(im,0,0,40,40);const d=x.getImageData(0,0,40,40).data,b={};
+  for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],bl=d[i+2];if(d[i+3]<200)continue;const mx=Math.max(r,g,bl),mn=Math.min(r,g,bl);if(mx>235&&mn>215)continue;if(mx<30)continue;
+    const k=[r,g,bl].map(v=>Math.round(v/48)).join(","),e=b[k]||(b[k]={w:0,n:0,r:0,g:0,b:0});e.w+=1+(mx-mn)/64;e.n++;e.r+=r;e.g+=g;e.b+=bl}
+  const cols=Object.values(b).sort((a,z)=>z.w-a.w).map(e=>[Math.round(e.r/e.n),Math.round(e.g/e.n),Math.round(e.b/e.n)]);
+  const L=c=>{const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2])};
+  const ct=(p,q)=>(Math.max(L(p),L(q))+.05)/(Math.min(L(p),L(q))+.05);
+  const hex=c=>"#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
+  if(!cols.length)return res({c1:"#0F3D3E",c2:"#FFFFFF"});
+  const p=cols[0];let t=cols.slice(1).find(q=>ct(p,q)>=3&&Math.abs(q[0]-p[0])+Math.abs(q[1]-p[1])+Math.abs(q[2]-p[2])>120);
+  if(!t)t=ct(p,[255,255,255])>=ct(p,[0,0,0])?[255,255,255]:[0,0,0];
+  res({c1:hex(p),c2:hex(t)})};im.src=src});
+
 
 if(!q.get("r")){const l=document.createElement("link");l.rel="manifest";l.href="manifest.json";document.head.appendChild(l);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{})}
 if(q.get("r"))customer(q.get("r"));
@@ -100,7 +117,7 @@ else onAuthStateChanged(auth,u=>u?(u.email===ADMIN?admin():owner(u.uid,false)):l
 async function customer(slug){
   const s=await getDocs(query(collection(db,"restaurants"),where("slug","==",slug)));
   if(s.empty){A.innerHTML='<div class="done">المطعم غير موجود</div>';return}
-  const rid=s.docs[0].id,R=s.docs[0].data();
+  const rid=s.docs[0].id,R=s.docs[0].data();applyTheme(R);
   let items=[],cat=null,cart={},tb="",ord=null,un=null;
   const watch=id=>{un&&un();un=onSnapshot(doc(db,"restaurants",rid,"orders",id),d=>{ord=d.exists()?d.data():null;draw()})};
   const old=localStorage.getItem("o_"+rid);if(old)watch(old);
@@ -131,7 +148,7 @@ async function customer(slug){
 
 /* ---------- الدخول ---------- */
 function login(){
-  A.className="";A.innerHTML='<div class="own"><h2>تسجيل الدخول</h2><input id="e" placeholder="اسم المستخدم أو الإيميل" dir="ltr" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة السر"><button class="btn pri" id="go">دخول</button></div>';
+  A.className="";resetTheme();A.innerHTML='<div class="own"><h2>تسجيل الدخول</h2><input id="e" placeholder="اسم المستخدم أو الإيميل" dir="ltr" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة السر"><button class="btn pri" id="go">دخول</button></div>';
   A.onclick=null;
   $("#go").onclick=async()=>{const v=$("#e").value.trim().toLowerCase();let em=toEm(v);
     if(!v.includes("@")){try{const r=await getDocs(query(collection(db,"restaurants"),where("username","==",v)));if(!r.empty&&r.docs[0].data().em)em=r.docs[0].data().em}catch(x){}}
@@ -142,7 +159,7 @@ const top=(t,back,lg)=>`<div class="top"><span class="brand">${lg?`<img class="l
 /* ---------- المصمم ---------- */
 async function admin(){
   const s=await getDocs(collection(db,"restaurants"));
-  A.className="wide";A.innerHTML=top("لوحة المصمم",false,"icon-192.png")+`<div class="own"><div class="add"><h3>مطعم جديد</h3><input id="n" placeholder="اسم المطعم"><input id="s" placeholder="الرابط بالإنجليزي مثل pizza-ali" dir="ltr"><input id="e" placeholder="اسم المستخدم لصاحب المطعم (إنجليزي) مثل: alreem" dir="ltr" autocapitalize="none"><input id="p" placeholder="كلمة سر (6 أحرف فأكثر)" dir="ltr"><button class="btn pri" data-a="mk">إنشاء المطعم</button></div>
+  A.className="wide";resetTheme();A.innerHTML=top("لوحة المصمم",false,"icon-192.png")+`<div class="own"><div class="add"><h3>مطعم جديد</h3><input id="n" placeholder="اسم المطعم"><input id="s" placeholder="الرابط بالإنجليزي مثل pizza-ali" dir="ltr"><input id="e" placeholder="اسم المستخدم لصاحب المطعم (إنجليزي) مثل: alreem" dir="ltr" autocapitalize="none"><input id="p" placeholder="كلمة سر (6 أحرف فأكثر)" dir="ltr"><button class="btn pri" data-a="mk">إنشاء المطعم</button></div>
   ${s.docs.map(d=>`<div class="item"><div class="info"><b>${esc(d.data().name)}</b><span class="note" dir="ltr">?r=${esc(d.data().slug)}${d.data().username?" · @"+esc(d.data().username):""}</span></div><button class="btn" data-a="mg" data-id="${d.id}">إدارة</button></div>`).join("")}</div>`;
   A.onclick=async e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a;
     if(a=="out")signOut(auth);
@@ -163,10 +180,12 @@ function owner(rid,adm){
   let R={},items=[],orders=[],tab="i",img=null,firstO=true,jc=false;const rr=doc(db,"restaurants",rid);
   let ordUn=null,curClose=-1;
   const subOrders=()=>{ordUn&&ordUn();firstO=true;curClose=R.lastClose||0;ordUn=onSnapshot(query(collection(rr,"orders"),where("ts",">",curClose),orderBy("ts","desc")),sn=>{if(!firstO)sn.docChanges().forEach(c=>{if(c.type=="added"&&!c.doc.data().st){beep();toast("🔔 طلب جديد رقم "+c.doc.data().n)}});firstO=false;orders=sn.docs.map(d=>({id:d.id,...d.data()}));draw()})};
-  const U=[onSnapshot(rr,d=>{R=d.data()||{};if((R.lastClose||0)!==curClose)subOrders();draw()}),
+  const U=[onSnapshot(rr,d=>{R=d.data()||{};applyTheme(R);if((R.lastClose||0)!==curClose)subOrders();draw()}),
     onSnapshot(collection(rr,"items"),sn=>{items=sn.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts||0)-(b.ts||0));draw()}),
     ()=>ordUn&&ordUn()];
   const url=()=>location.origin+location.pathname+"?r="+R.slug;
+  const pv=()=>{const e=$("#pv");if(e){e.style.background=$("#c1").value;e.style.color=$("#c2").value}};
+  A.oninput=e=>{if(e.target.id=="c1"||e.target.id=="c2")pv()};
   const agg=list=>{const m={};let pieces=0,total=0;list.forEach(o=>{total+=o.t;const its=o.its||(o.lines||[]).map(l=>{const x=/^(\d+)× (.+)$/.exec(l);if(!x)return null;const it=items.find(i=>i.name==x[2]);return{n:x[2],q:+x[1],p:it?it.price:0}}).filter(Boolean);its.forEach(i=>{const r=m[i.n]||(m[i.n]={name:i.n,q:0,total:0});r.q+=i.q;r.total+=i.q*i.p;pieces+=i.q})});const ns=list.map(o=>o.n);return{rows:Object.values(m).sort((a,b)=>b.total-a.total),pieces,total,count:list.length,from:ns.length?Math.min(...ns):0,to:ns.length?Math.max(...ns):0}};
   const tbl=r=>`<table class="tb"><thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي (${CUR})</th></tr></thead><tbody>${r.rows.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.q}</td><td>${fmt(x.q?Math.round(x.total/x.q*100)/100:0)}</td><td>${fmt(x.total)}</td></tr>`).join("")}</tbody><tfoot><tr><td>المجموع</td><td>${r.pieces}</td><td></td><td>${fmt(r.total)}</td></tr></tfoot></table>`;
   const info=r=>r.count?`عدد الفواتير: ${r.count} (من رقم ${r.from} إلى رقم ${r.to})`:"لا توجد مبيعات";
@@ -193,6 +212,7 @@ function owner(rid,adm){
     if(tab=="s"){
       h+=`<div class="add"><h3>هوية المطعم</h3><input data-a="rn" value="${esc(R.name)}"><div class="row"><label class="btn">🖼️ رفع الشعار<input type="file" accept="image/*" data-a="lg" hidden></label>${R.logo?`<img class="logo" src="${R.logo}" alt="">`:'<span class="note">لا يوجد شعار</span>'}</div></div>`;
       h+=`<p class="note">الاسم والشعار يظهران في أعلى قائمة الزبائن وفي الشريط العلوي للوحة التحكم.</p>`;
+      h+=`<div class="add"><h3>ألوان المطعم</h3><div class="row"><label>لون الشريط <input type="color" id="c1" value="${R.c1||"#B71C1C"}"></label><label>لون الكتابة <input type="color" id="c2" value="${R.c2||"#FFD60A"}"></label></div><div id="pv" class="pv" style="background:${R.c1||"#B71C1C"};color:${R.c2||"#FFD60A"}">${esc(R.name||"")} - معاينة</div><div class="row"><button class="btn" data-a="autoc">🎨 اختيار من الشعار تلقائياً</button><button class="btn pri" data-a="savec">حفظ الألوان</button></div></div>`;
       if(!adm&&auth.currentUser){const cu=auth.currentUser,internal=(cu.email||"").endsWith("@qrmenu.app"),un=R.username||(internal?cu.email.split("@")[0]:"");
         h+=`<div class="add"><h3>بيانات الدخول</h3>${internal?`<p class="note">اسم المستخدم الحالي: <b dir="ltr">${esc(un)}</b></p><input id="nu" dir="ltr" autocapitalize="none" placeholder="اسم مستخدم جديد (إنجليزي)"><button class="btn" data-a="su">حفظ اسم المستخدم</button>`:`<p class="note">تدخل حالياً بالإيميل: <b dir="ltr">${esc(cu.email)}</b></p>`}<input id="cp" type="password" placeholder="كلمة السر الحالية"><input id="np" type="password" placeholder="كلمة السر الجديدة (6 أحرف فأكثر)"><button class="btn pri" data-a="sp">تغيير كلمة السر</button></div>`}
     }
@@ -215,6 +235,8 @@ function owner(rid,adm){
     if(a=="prn")printRep(agg(orders),"مبيعات اليوم - "+nowTxt());
     if(a=="prc"){const c=(R.closures||[])[+id];if(c)printRep(c,"تقرير مبيعات - "+c.date)}
     if(a=="close")closeDay();
+    if(a=="autoc"){if(!R.logo)return toast("ارفع الشعار أولاً من الأعلى");const r=await fromLogo(R.logo);if(!r)return toast("تعذر قراءة الشعار");$("#c1").value=r.c1;$("#c2").value=r.c2;pv();toast("اضغط حفظ الألوان لاعتمادها")}
+    if(a=="savec"){try{await updateDoc(rr,{c1:$("#c1").value,c2:$("#c2").value});toast("تم حفظ الألوان")}catch(x){alert("تعذر الحفظ: "+(x.code||x.message))}}
     if(a=="su"){const v=$("#nu").value.trim().toLowerCase();if(!/^[a-z0-9._-]{3,}$/.test(v))return toast("اسم المستخدم: حروف إنجليزية وأرقام (3 أحرف على الأقل)");
       try{const q2=await getDocs(query(collection(db,"restaurants"),where("username","==",v)));if(q2.docs.some(d=>d.id!=rid))return toast("اسم المستخدم مستخدم");await updateDoc(rr,{username:v,em:auth.currentUser.email});toast("تم تغيير اسم المستخدم")}catch(x){alert("تعذر الحفظ: "+(x.code||x.message))}}
     if(a=="sp"){const cp=$("#cp").value,np=$("#np").value;if(np.length<6)return toast("كلمة السر الجديدة 6 أحرف على الأقل");const cu=auth.currentUser;
