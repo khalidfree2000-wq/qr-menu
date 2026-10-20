@@ -73,7 +73,7 @@ details{border:1px solid var(--line);border-radius:10px;padding:8px 10px}summary
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,onAuthStateChanged,signOut,updatePassword,reauthenticateWithCredential,EmailAuthProvider}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import{getFirestore,doc,collection,getDocs,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,query,where,orderBy,runTransaction,writeBatch}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const ADMIN="khalid.free2000@gmail.com"; // إيميل المصمم (نفسه في قواعد الأمان)
@@ -133,7 +133,9 @@ async function customer(slug){
 function login(){
   A.className="";A.innerHTML='<div class="own"><h2>تسجيل الدخول</h2><input id="e" placeholder="اسم المستخدم أو الإيميل" dir="ltr" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة السر"><button class="btn pri" id="go">دخول</button></div>';
   A.onclick=null;
-  $("#go").onclick=()=>signInWithEmailAndPassword(auth,toEm($("#e").value),$("#p").value).catch(()=>toast("بيانات الدخول غير صحيحة"));
+  $("#go").onclick=async()=>{const v=$("#e").value.trim().toLowerCase();let em=toEm(v);
+    if(!v.includes("@")){try{const r=await getDocs(query(collection(db,"restaurants"),where("username","==",v)));if(!r.empty&&r.docs[0].data().em)em=r.docs[0].data().em}catch(x){}}
+    signInWithEmailAndPassword(auth,em,$("#p").value).catch(()=>toast("بيانات الدخول غير صحيحة"))};
 }
 const top=(t,back,lg)=>`<div class="top"><span class="brand">${lg?`<img class="logo" src="${lg}" alt="">`:""}<b>${esc(t)}</b></span><span>${back?'<button class="btn" data-a="back">رجوع</button> ':""}<button class="btn" data-a="out">خروج</button></span></div>`;
 
@@ -141,15 +143,17 @@ const top=(t,back,lg)=>`<div class="top"><span class="brand">${lg?`<img class="l
 async function admin(){
   const s=await getDocs(collection(db,"restaurants"));
   A.className="wide";A.innerHTML=top("لوحة المصمم",false,"icon-192.png")+`<div class="own"><div class="add"><h3>مطعم جديد</h3><input id="n" placeholder="اسم المطعم"><input id="s" placeholder="الرابط بالإنجليزي مثل pizza-ali" dir="ltr"><input id="e" placeholder="اسم المستخدم لصاحب المطعم (إنجليزي) مثل: alreem" dir="ltr" autocapitalize="none"><input id="p" placeholder="كلمة سر (6 أحرف فأكثر)" dir="ltr"><button class="btn pri" data-a="mk">إنشاء المطعم</button></div>
-  ${s.docs.map(d=>`<div class="item"><div class="info"><b>${esc(d.data().name)}</b><span class="note" dir="ltr">?r=${esc(d.data().slug)}</span></div><button class="btn" data-a="mg" data-id="${d.id}">إدارة</button></div>`).join("")}</div>`;
+  ${s.docs.map(d=>`<div class="item"><div class="info"><b>${esc(d.data().name)}</b><span class="note" dir="ltr">?r=${esc(d.data().slug)}${d.data().username?" · @"+esc(d.data().username):""}</span></div><button class="btn" data-a="mg" data-id="${d.id}">إدارة</button></div>`).join("")}</div>`;
   A.onclick=async e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a;
     if(a=="out")signOut(auth);
     if(a=="mg")owner(b.dataset.id,true);
     if(a=="mk"){const n=$("#n").value.trim(),sl=$("#s").value.trim().toLowerCase(),em=toEm($("#e").value),pw=$("#p").value;
       if(!n||!/^[a-z0-9-]+$/.test(sl)||!/^([a-z0-9._-]{3,}|\S+@\S+)$/i.test($("#e").value.trim())||pw.length<6)return toast("راجع البيانات: الرابط واسم المستخدم حروف إنجليزية وأرقام فقط (3 أحرف على الأقل)");
       if(!(await getDocs(query(collection(db,"restaurants"),where("slug","==",sl)))).empty)return toast("هذا الرابط مستخدم");
+      const raw=$("#e").value.trim().toLowerCase();
+      if(!raw.includes("@")&&!(await getDocs(query(collection(db,"restaurants"),where("username","==",raw)))).empty)return toast("اسم المستخدم مستخدم");
       try{const a2=getAuth(initializeApp(cfg,"s"+Date.now())),c=await createUserWithEmailAndPassword(a2,em,pw);
-        await setDoc(doc(db,"restaurants",c.user.uid),{name:n,slug:sl,logo:""});await signOut(a2);toast("تم إنشاء المطعم");admin()}
+        await setDoc(doc(db,"restaurants",c.user.uid),{name:n,slug:sl,logo:"",...(raw.includes("@")?{}:{username:raw,em})});await signOut(a2);toast("تم إنشاء المطعم");admin()}
       catch(x){console.error(x);alert("سبب الخطأ: "+(x.code||x.message))}}};
 }
 
@@ -164,7 +168,7 @@ function owner(rid,adm){
     ()=>ordUn&&ordUn()];
   const url=()=>location.origin+location.pathname+"?r="+R.slug;
   const agg=list=>{const m={};let pieces=0,total=0;list.forEach(o=>{total+=o.t;const its=o.its||(o.lines||[]).map(l=>{const x=/^(\d+)× (.+)$/.exec(l);if(!x)return null;const it=items.find(i=>i.name==x[2]);return{n:x[2],q:+x[1],p:it?it.price:0}}).filter(Boolean);its.forEach(i=>{const r=m[i.n]||(m[i.n]={name:i.n,q:0,total:0});r.q+=i.q;r.total+=i.q*i.p;pieces+=i.q})});const ns=list.map(o=>o.n);return{rows:Object.values(m).sort((a,b)=>b.total-a.total),pieces,total,count:list.length,from:ns.length?Math.min(...ns):0,to:ns.length?Math.max(...ns):0}};
-  const tbl=r=>`<table class="tb"><thead><tr><th>الصنف</th><th>الكمية</th><th>الإجمالي (${CUR})</th></tr></thead><tbody>${r.rows.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.q}</td><td>${fmt(x.total)}</td></tr>`).join("")}</tbody><tfoot><tr><td>المجموع</td><td>${r.pieces}</td><td>${fmt(r.total)}</td></tr></tfoot></table>`;
+  const tbl=r=>`<table class="tb"><thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي (${CUR})</th></tr></thead><tbody>${r.rows.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.q}</td><td>${fmt(x.q?Math.round(x.total/x.q*100)/100:0)}</td><td>${fmt(x.total)}</td></tr>`).join("")}</tbody><tfoot><tr><td>المجموع</td><td>${r.pieces}</td><td></td><td>${fmt(r.total)}</td></tr></tfoot></table>`;
   const info=r=>r.count?`عدد الفواتير: ${r.count} (من رقم ${r.from} إلى رقم ${r.to})`:"لا توجد مبيعات";
   const nowTxt=()=>new Date().toLocaleString("en-GB",{hour12:false}).replace(",","");
   const salesView=()=>{const r=agg(orders),cl=R.closures||[];
@@ -189,6 +193,8 @@ function owner(rid,adm){
     if(tab=="s"){
       h+=`<div class="add"><h3>هوية المطعم</h3><input data-a="rn" value="${esc(R.name)}"><div class="row"><label class="btn">🖼️ رفع الشعار<input type="file" accept="image/*" data-a="lg" hidden></label>${R.logo?`<img class="logo" src="${R.logo}" alt="">`:'<span class="note">لا يوجد شعار</span>'}</div></div>`;
       h+=`<p class="note">الاسم والشعار يظهران في أعلى قائمة الزبائن وفي الشريط العلوي للوحة التحكم.</p>`;
+      if(!adm&&auth.currentUser){const cu=auth.currentUser,internal=(cu.email||"").endsWith("@qrmenu.app"),un=R.username||(internal?cu.email.split("@")[0]:"");
+        h+=`<div class="add"><h3>بيانات الدخول</h3>${internal?`<p class="note">اسم المستخدم الحالي: <b dir="ltr">${esc(un)}</b></p><input id="nu" dir="ltr" autocapitalize="none" placeholder="اسم مستخدم جديد (إنجليزي)"><button class="btn" data-a="su">حفظ اسم المستخدم</button>`:`<p class="note">تدخل حالياً بالإيميل: <b dir="ltr">${esc(cu.email)}</b></p>`}<input id="cp" type="password" placeholder="كلمة السر الحالية"><input id="np" type="password" placeholder="كلمة السر الجديدة (6 أحرف فأكثر)"><button class="btn pri" data-a="sp">تغيير كلمة السر</button></div>`}
     }
     if(tab=="o")h+='<p class="note">🔔 اترك هذه الصفحة مفتوحة ليصدر تنبيه صوتي عند وصول طلب جديد.</p>'+(orders.length?orders.map(o=>`<div class="item" style="align-items:flex-start"><div class="pic" style="background:var(--gold);font-weight:800;font-size:22px;color:#12302F">${o.n}</div><div class="info"><b>${o.tb?"طاولة "+esc(o.tb):"بدون طاولة"}</b><span class="note">${o.lines.map(esc).join("، ")}</span><br><span class="price">${fmt(o.t)} <span class="cur">${CUR}</span></span><div class="row"><span class="tag ${o.st?"yes":"no"}">${o.st?"جاهز":"جديد"}</span>${o.st?"":`<button class="btn pri" data-a="rd" data-id="${o.id}">تم التجهيز</button>`}</div></div></div>`).join(""):'<p class="note">لا توجد طلبات بعد.</p>');
     if(tab=="q")h+=`<div class="full" style="text-align:center"><div id="qr"></div><p class="note" dir="ltr" style="word-break:break-all;margin:12px 0">${esc(url())}</p><button class="btn pri" data-a="dl">تحميل صورة QR للطباعة</button></div>`;
@@ -209,6 +215,10 @@ function owner(rid,adm){
     if(a=="prn")printRep(agg(orders),"مبيعات اليوم - "+nowTxt());
     if(a=="prc"){const c=(R.closures||[])[+id];if(c)printRep(c,"تقرير مبيعات - "+c.date)}
     if(a=="close")closeDay();
+    if(a=="su"){const v=$("#nu").value.trim().toLowerCase();if(!/^[a-z0-9._-]{3,}$/.test(v))return toast("اسم المستخدم: حروف إنجليزية وأرقام (3 أحرف على الأقل)");
+      try{const q2=await getDocs(query(collection(db,"restaurants"),where("username","==",v)));if(q2.docs.some(d=>d.id!=rid))return toast("اسم المستخدم مستخدم");await updateDoc(rr,{username:v,em:auth.currentUser.email});toast("تم تغيير اسم المستخدم")}catch(x){alert("تعذر الحفظ: "+(x.code||x.message))}}
+    if(a=="sp"){const cp=$("#cp").value,np=$("#np").value;if(np.length<6)return toast("كلمة السر الجديدة 6 أحرف على الأقل");const cu=auth.currentUser;
+      try{await reauthenticateWithCredential(cu,EmailAuthProvider.credential(cu.email,cp));await updatePassword(cu,np);$("#cp").value="";$("#np").value="";toast("تم تغيير كلمة السر")}catch(x){toast(x.code=="auth/wrong-password"||x.code=="auth/invalid-credential"?"كلمة السر الحالية غير صحيحة":"تعذر التغيير: "+(x.code||""))}}
     if(a=="del"&&confirm("حذف هذه الوجبة؟"))deleteDoc(doc(rr,"items",id));
     if(a=="rd")updateDoc(doc(rr,"orders",id),{st:1});
     if(a=="add"){const n=$("#in").value.trim(),p=$("#ip").value,c=$("#ic").value.trim()||"عام";if(!n||!p)return toast("اكتب الاسم والسعر");
