@@ -69,6 +69,7 @@ details{border:1px solid var(--line);border-radius:10px;padding:8px 10px}summary
 .wide .own>.add,.wide .own>.note,.wide .own>.full{grid-column:1/-1}
 .wide .own>.add{max-width:560px}
 }
+#off{display:none;position:fixed;top:0;left:0;right:0;z-index:60;background:#B71C1C;color:#fff;text-align:center;padding:6px 10px;font-size:13px}body.offl #app{padding-top:32px}
 #t{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;padding:9px 18px;border-radius:99px;font-size:14px;opacity:0;transition:.25s;pointer-events:none}#t.on{opacity:1}
 </style>
 </head>
@@ -78,12 +79,12 @@ details{border:1px solid var(--line);border-radius:10px;padding:8px 10px}summary
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,onAuthStateChanged,signOut,updatePassword,reauthenticateWithCredential,EmailAuthProvider}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import{getFirestore,doc,collection,getDocs,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,query,where,orderBy,runTransaction,writeBatch}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import{initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,collection,getDocs,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,query,where,orderBy,runTransaction,writeBatch}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const ADMIN="khalid.free2000@gmail.com"; // إيميل المصمم (نفسه في قواعد الأمان)
 const CUR="د.ل";
 const cfg={apiKey:"AIzaSyBQvXih9GJSfHfgaQY6IXqU2Oj0PVl6Oww",authDomain:"qr-menu-329aa.firebaseapp.com",projectId:"qr-menu-329aa",storageBucket:"qr-menu-329aa.firebasestorage.app",messagingSenderId:"29443094275",appId:"1:29443094275:web:1d54fcfd064a4467df5b36"};
-const app=initializeApp(cfg),auth=getAuth(app),db=getFirestore(app);
+const app=initializeApp(cfg),auth=getAuth(app),db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
 const $=s=>document.querySelector(s),A=$("#app");
 const fmt=n=>Number(n).toLocaleString("en-US");
 const toEm=u=>{u=u.trim().toLowerCase();return u.includes("@")?u:u+"@qrmenu.app"};
@@ -94,6 +95,8 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const toast=t=>{const x=$("#t");x.textContent=t;x.classList.add("on");setTimeout(()=>x.classList.remove("on"),1500)};
 const rs=(f,w,cb)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const s=Math.min(1,w/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.7))};i.src=r.result};r.readAsDataURL(f)};
 const pic=(i,o)=>`<div class="pic ${o?"out":""}" style="${i.img?`background-image:url(${i.img})`:""}">${i.img?"":"🍽️"}</div>`;
+const nb=document.createElement("div");nb.id="off";nb.textContent="⚠️ لا يوجد اتصال بالإنترنت، تظهر آخر بيانات محفوظة وبعض العمليات تحتاج اتصالاً";document.body.appendChild(nb);
+const net=()=>{nb.style.display=navigator.onLine?"none":"block";document.body.classList.toggle("offl",!navigator.onLine)};addEventListener("online",net);addEventListener("offline",net);net();
 const q=new URLSearchParams(location.search);
 const applyTheme=R=>{const s=document.documentElement.style;R.c1?s.setProperty("--bar",R.c1):s.removeProperty("--bar");R.c2?s.setProperty("--bart",R.c2):s.removeProperty("--bart");const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=R.c1||"#0F3D3E"};
 const resetTheme=()=>applyTheme({});
@@ -117,7 +120,7 @@ else onAuthStateChanged(auth,u=>u?(u.email===ADMIN?admin():owner(u.uid,false)):l
 
 /* ---------- الزبون ---------- */
 async function customer(slug){
-  const s=await getDocs(query(collection(db,"restaurants"),where("slug","==",slug)));
+  let s;try{s=await getDocs(query(collection(db,"restaurants"),where("slug","==",slug)))}catch(e){A.innerHTML='<div class="done">لا يوجد اتصال بالإنترنت. افتح الصفحة مرة واحدة على الأقل مع الإنترنت.</div>';return}
   if(s.empty){A.innerHTML='<div class="done">المطعم غير موجود</div>';return}
   const rid=s.docs[0].id,R=s.docs[0].data();applyTheme(R);
   let items=[],cat=null,cart={},tb="",ord=null,un=null,ty="dine",f=JSON.parse(localStorage.getItem("cust")||"{}");
@@ -153,7 +156,7 @@ async function customer(slug){
       const cr=doc(db,"counters",rid),or=doc(collection(db,"restaurants",rid,"orders"));
       try{await runTransaction(db,async tx=>{const c=await tx.get(cr),n=c.exists()?c.data().n+1:101;tx.set(cr,{n});tx.set(or,{n,lines,its:items.filter(i=>cart[i.id]).map(i=>({n:i.name,q:cart[i.id],p:i.price})),t,tb:(!R.delivery||ty=="dine")?tb.trim():"",st:0,ts:Date.now(),ty:R.delivery?ty:"dine",...(dl?{dl:true,fee:fee2,cust:{n:(f.n||"").trim(),p:f.p.trim(),a:f.a.trim(),l:f.l||""}}:{})})});
         if(dl){localStorage.setItem("cust",JSON.stringify({n:f.n,p:f.p,a:f.a}));f.l=""}
-        cart={};tb="";localStorage.setItem("o_"+rid,or.id);watch(or.id);return}catch(x){toast("تعذر إرسال الطلب، حاول مرة أخرى");return}
+        cart={};tb="";localStorage.setItem("o_"+rid,or.id);watch(or.id);return}catch(x){toast(navigator.onLine?"تعذر إرسال الطلب، حاول مرة أخرى":"لا يوجد اتصال بالإنترنت، تعذر إرسال الطلب");return}
     }
     draw();scrollTo(0,y)};
 }
@@ -164,7 +167,7 @@ function login(){
   A.onclick=null;
   $("#go").onclick=async()=>{const v=$("#e").value.trim().toLowerCase();let em=toEm(v);
     if(!v.includes("@")){try{const r=await getDocs(query(collection(db,"restaurants"),where("username","==",v)));if(!r.empty&&r.docs[0].data().em)em=r.docs[0].data().em}catch(x){}}
-    signInWithEmailAndPassword(auth,em,$("#p").value).catch(()=>toast("بيانات الدخول غير صحيحة"))};
+    signInWithEmailAndPassword(auth,em,$("#p").value).catch(()=>toast(navigator.onLine?"بيانات الدخول غير صحيحة":"لا يوجد اتصال بالإنترنت"))};
 }
 const top=(t,back,lg)=>`<div class="top"><span class="brand">${lg?`<img class="logo" src="${lg}" alt="">`:""}<b>${esc(t)}</b></span><span>${back?'<button class="btn" data-a="back">رجوع</button> ':""}<button class="btn" data-a="out">خروج</button></span></div>`;
 
@@ -189,10 +192,10 @@ async function admin(){
 /* ---------- صاحب المطعم ---------- */
 function owner(rid,adm){
   A.className="wide";
-  let R={},items=[],orders=[],tab="i",img=null,firstO=true,jc=false,mcart={},mcat=null,mtb="";const rr=doc(db,"restaurants",rid);
+  let R={},items=[],orders=[],tab="i",img=null,firstO=true,jc=false,mcart={},mcat=null,mtb="",srv=true,topping=false,first=true;const rr=doc(db,"restaurants",rid),cr=doc(db,"counters",rid);
   let ordUn=null,curClose=-1;
   const subOrders=()=>{ordUn&&ordUn();firstO=true;curClose=R.lastClose||0;ordUn=onSnapshot(query(collection(rr,"orders"),where("ts",">",curClose),orderBy("ts","desc")),sn=>{if(!firstO)sn.docChanges().forEach(c=>{if(c.type=="added"&&c.doc.data().st===0){beep();toast("🔔 طلب جديد رقم "+c.doc.data().n)}else if(c.type=="modified"&&c.doc.data().st==2){beep();toast("🚫 ألغى الزبون الطلب رقم "+c.doc.data().n)}else if(c.type=="modified"&&c.doc.data().st===0&&!c.doc.metadata.hasPendingWrites){beep();toast("✏️ عدّل الزبون الطلب رقم "+c.doc.data().n)}});if(!adm)sn.docChanges().forEach(c=>{const d=c.doc.data();if(c.type!="removed"&&d.st===0&&!d.ack)updateDoc(c.doc.ref,{ack:true}).catch(()=>{})});firstO=false;orders=sn.docs.map(d=>({id:d.id,...d.data()}));draw()})};
-  const U=[onSnapshot(rr,d=>{R=d.data()||{};applyTheme(R);if((R.lastClose||0)!==curClose)subOrders();draw()}),
+  const U=[onSnapshot(rr,{includeMetadataChanges:true},d=>{const nr=d.data()||{},ch=JSON.stringify(nr)!==JSON.stringify(R);srv=!d.metadata.fromCache;R=nr;if(ch||first){first=false;applyTheme(R);if((R.lastClose||0)!==curClose)subOrders();draw()}if(srv&&localStorage.getItem("rvon_"+rid))topUp()}),
     onSnapshot(collection(rr,"items"),sn=>{items=sn.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts||0)-(b.ts||0));draw()}),
     ()=>ordUn&&ordUn()];
   const url=()=>location.origin+location.pathname+"?r="+R.slug;
@@ -218,14 +221,18 @@ function owner(rid,adm){
     if(!av.length)return '<p class="note full">أضف وجبات متوفرة أولاً من تبويب الوجبات.</p>';
     if(!cats.includes(mcat))mcat=cats[0];
     const cnt=Object.values(mcart).reduce((a,b)=>a+b,0),tot=av.reduce((a,i)=>a+(mcart[i.id]||0)*i.price,0);
-    return `<div class="add full"><h3>طلب يدوي (لزبون بدون هاتف)</h3><p class="note">اختر الأصناف ثم احفظ واطبع الفاتورة. يدخل الطلب في تقرير المبيعات ويأخذ رقم الفاتورة التالي.</p><div class="chips" style="padding:0">${cats.map(c=>`<button data-a="mc" data-v="${esc(c)}" class="${c==mcat?"on":""}">${esc(c)}</button>`).join("")}</div></div>
+    return `<div class="add full"><h3>طلب يدوي (لزبون بدون هاتف)</h3><p class="note">اختر الأصناف ثم احفظ واطبع الفاتورة. يدخل الطلب في تقرير المبيعات ويأخذ رقم الفاتورة التالي.</p><p class="note">🔢 أرقام فواتير محجوزة للعمل بدون إنترنت: ${getRv().length}. عند انقطاع الإنترنت يستمر الطلب اليدوي والطباعة، ويُرسل الطلب تلقائياً عند عودته.</p><div class="chips" style="padding:0">${cats.map(c=>`<button data-a="mc" data-v="${esc(c)}" class="${c==mcat?"on":""}">${esc(c)}</button>`).join("")}</div></div>
     ${av.filter(i=>i.cat==mcat).map(i=>`<div class="item">${pic(i)}<div class="info"><b>${esc(i.name)}</b><span class="price">${fmt(i.price)} <span class="cur">${CUR}</span></span><div class="qty"><button data-a="mp" data-id="${i.id}" aria-label="زيادة">+</button><b>${mcart[i.id]||0}</b><button data-a="mm" data-id="${i.id}" aria-label="إنقاص">−</button></div></div></div>`).join("")}
     ${cnt?`<div class="add full"><input id="mtb" placeholder="رقم الطاولة أو اسم الزبون (اختياري)" value="${esc(mtb)}"><div class="t2">${cnt} صنف · الإجمالي <b>${fmt(tot)} ${CUR}</b></div><div class="row"><button class="btn pri" data-a="msp">💾 حفظ وطباعة الفاتورة</button><button class="btn" data-a="ms">حفظ فقط</button><button class="btn" data-a="mclr">مسح</button></div></div>`:""}`};
+  const rvKey="rv_"+rid,getRv=()=>{try{return JSON.parse(localStorage.getItem(rvKey)||"[]")}catch(e){return[]}},setRv=a=>localStorage.setItem(rvKey,JSON.stringify(a));
+  const topUp=async()=>{if(adm||topping||!navigator.onLine||!srv)return;topping=true;try{const rv=getRv();while(rv.length<(R.rvn||20)){rv.push(await runTransaction(db,async tx=>{const c=await tx.get(cr),n=c.exists()?c.data().n+1:101;tx.set(cr,{n});return n}));setRv(rv)}}catch(e){}topping=false;if(tab=="n")draw()};
   const msave=async print=>{const sel=items.filter(i=>mcart[i.id]);if(!sel.length)return;
-    const its=sel.map(i=>({n:i.name,q:mcart[i.id],p:i.price})),t=its.reduce((a,x)=>a+x.q*x.p,0),lines=its.map(x=>x.q+"× "+x.n),tb=mtb.trim();
-    const cr=doc(db,"counters",rid),or=doc(collection(rr,"orders")),ts=Date.now();
-    try{const n=await runTransaction(db,async tx=>{const c=await tx.get(cr),n=c.exists()?c.data().n+1:101;tx.set(cr,{n});tx.set(or,{n,lines,its,t,tb,st:1,ts,manual:true});return n});
-      mcart={};mtb="";toast("تم حفظ الطلب رقم "+n);draw();if(print)receipt({n,ts,tb,its,t,lines})}catch(x){alert("تعذر الحفظ: "+(x.code||x.message))}};
+    const its=sel.map(i=>({n:i.name,q:mcart[i.id],p:i.price})),t=its.reduce((a,x)=>a+x.q*x.p,0),lines=its.map(x=>x.q+"× "+x.n),tb=mtb.trim(),ts=Date.now(),or=doc(collection(rr,"orders"));
+    const done=(n,off)=>{mcart={};mtb="";toast(off?"تم حفظ الطلب رقم "+n+" وسيُرسل عند عودة الإنترنت":"تم حفظ الطلب رقم "+n);draw();if(print)receipt({n,ts,tb,its,t,lines})};
+    const offline=()=>{const rv=getRv();if(!rv.length){alert("لا يوجد اتصال بالإنترنت، ونفدت أرقام الفواتير المحجوزة للعمل بدونه. انتظر عودة الاتصال لحفظ الطلب.");return}const n=rv.shift();setRv(rv);setDoc(or,{n,lines,its,t,tb,st:1,ts,manual:true}).catch(()=>{});done(n,true)};
+    if(!navigator.onLine||!srv)return offline();
+    try{const n=await runTransaction(db,async tx=>{const c=await tx.get(cr),n=c.exists()?c.data().n+1:101;tx.set(cr,{n});tx.set(or,{n,lines,its,t,tb,st:1,ts,manual:true});return n});done(n,false);topUp()}
+    catch(x){if(getRv().length)offline();else alert("تعذر الحفظ: "+(x.code||x.message))}};
   const closeDay=async()=>{if(!orders.filter(o=>o.st!==2).length)return toast("لا توجد مبيعات");const nw=orders.filter(o=>o.st===0);
     if(!confirm((nw.length?`يوجد ${nw.length} طلب لم يُجهَّز بعد وسيُعتبر مُجهَّزاً. `:"")+"إقفال اليوم وحفظ التقرير وتفريغ الطلبات؟"))return;
     const r=agg(orders),now=Date.now(),c={id:now,date:nowTxt(),count:r.count,from:r.from,to:r.to,pieces:r.pieces,total:r.total,rows:r.rows};
@@ -244,7 +251,7 @@ function owner(rid,adm){
       h+=`<div class="add"><h3>هوية المطعم</h3><input data-a="rn" value="${esc(R.name)}"><div class="row"><label class="btn">🖼️ رفع الشعار<input type="file" accept="image/*" data-a="lg" hidden></label>${R.logo?`<img class="logo" src="${R.logo}" alt="">`:'<span class="note">لا يوجد شعار</span>'}</div></div>`;
       h+=`<p class="note">الاسم والشعار يظهران في أعلى قائمة الزبائن وفي الشريط العلوي للوحة التحكم.</p>`;
       h+=`<div class="add"><h3>خدمة التوصيل</h3><div class="row"><label class="sw"><input type="checkbox" id="dv" ${R.delivery?"checked":""}><i></i></label><span>تفعيل التوصيل لزبائن هذا المطعم</span></div><input id="df" type="number" min="0" placeholder="رسوم التوصيل (اختياري)" value="${R.dfee||""}"><button class="btn pri" data-a="savedl">حفظ إعدادات التوصيل</button></div>`;
-      h+=`<div class="add"><h3>بيانات الفاتورة (طابعة الكاشير)</h3><label>عرض الورق <select id="pp"><option value="80" ${R.paper!=58?"selected":""}>80 مم (الأكثر شيوعاً)</option><option value="58" ${R.paper==58?"selected":""}>58 مم</option></select></label><input id="ph" dir="ltr" placeholder="رقم هاتف المطعم" value="${esc(R.phone||"")}"><input id="ad" placeholder="العنوان" value="${esc(R.addr||"")}"><input id="ft" placeholder="عبارة أسفل الفاتورة (مثل: شكراً لزيارتكم)" value="${esc(R.foot||"")}"><div class="row"><button class="btn pri" data-a="saveinv">حفظ بيانات الفاتورة</button><button class="btn" data-a="rcptest">🖨️ طباعة فاتورة تجريبية</button></div></div>`;
+      h+=`<div class="add"><h3>بيانات الفاتورة (طابعة الكاشير)</h3><label>عرض الورق <select id="pp"><option value="80" ${R.paper!=58?"selected":""}>80 مم (الأكثر شيوعاً)</option><option value="58" ${R.paper==58?"selected":""}>58 مم</option></select></label><input id="ph" dir="ltr" placeholder="رقم هاتف المطعم" value="${esc(R.phone||"")}"><input id="ad" placeholder="العنوان" value="${esc(R.addr||"")}"><input id="ft" placeholder="عبارة أسفل الفاتورة (مثل: شكراً لزيارتكم)" value="${esc(R.foot||"")}"><label>أرقام فواتير محجوزة للعمل بدون إنترنت (من 5 إلى 50)<input id="rv" type="number" min="5" max="50" placeholder="20" value="${R.rvn||""}"></label><div class="row"><button class="btn pri" data-a="saveinv">حفظ بيانات الفاتورة</button><button class="btn" data-a="rcptest">🖨️ طباعة فاتورة تجريبية</button></div></div>`;
       h+=`<div class="add"><h3>ألوان المطعم</h3><div class="row"><label>لون الشريط <input type="color" id="c1" value="${R.c1||"#B71C1C"}"></label><label>لون الكتابة <input type="color" id="c2" value="${R.c2||"#FFD60A"}"></label></div><div id="pv" class="pv" style="background:${R.c1||"#B71C1C"};color:${R.c2||"#FFD60A"}">${esc(R.name||"")} - معاينة</div><div class="row"><button class="btn" data-a="autoc">🎨 اختيار من الشعار تلقائياً</button><button class="btn pri" data-a="savec">حفظ الألوان</button></div></div>`;
       if(!adm&&auth.currentUser){const cu=auth.currentUser,internal=(cu.email||"").endsWith("@qrmenu.app"),un=R.username||(internal?cu.email.split("@")[0]:"");
         h+=`<div class="add"><h3>بيانات الدخول</h3>${internal?`<p class="note">اسم المستخدم الحالي: <b dir="ltr">${esc(un)}</b></p><input id="nu" dir="ltr" autocapitalize="none" placeholder="اسم مستخدم جديد (إنجليزي)"><button class="btn" data-a="su">حفظ اسم المستخدم</button>`:`<p class="note">تدخل حالياً بالإيميل: <b dir="ltr">${esc(cu.email)}</b></p>`}<input id="cp" type="password" placeholder="كلمة السر الحالية"><input id="np" type="password" placeholder="كلمة السر الجديدة (6 أحرف فأكثر)"><button class="btn pri" data-a="sp">تغيير كلمة السر</button></div>`}
@@ -264,7 +271,7 @@ function owner(rid,adm){
   A.onclick=async e=>{const b=e.target.closest("[data-a]");if(!b||b.tagName=="INPUT")return;const a=b.dataset.a,id=b.dataset.id;
     if(a=="out"){U.forEach(f=>f());signOut(auth)}
     if(a=="back"){U.forEach(f=>f());admin()}
-    if(a=="tab"){tab=b.dataset.v;jc=false;draw()}
+    if(a=="tab"){tab=b.dataset.v;jc=false;draw();if(tab=="n"){localStorage.setItem("rvon_"+rid,"1");topUp()}}
     if(a=="prn")printRep(agg(orders),"مبيعات اليوم - "+nowTxt());
     if(a=="prc"){const c=(R.closures||[])[+id];if(c)printRep(c,"تقرير مبيعات - "+c.date)}
     if(a=="close")closeDay();
@@ -276,7 +283,7 @@ function owner(rid,adm){
     if(a=="ms")msave(false);
     if(a=="rcp"){const o=orders.find(x=>x.id==id);if(o)receipt(o)}
     if(a=="rcptest")receipt({n:101,ts:Date.now(),tb:"5",its:[{q:2,n:"برغر دجاج",p:5000},{q:1,n:"عصير برتقال",p:3000}],t:13000});
-    if(a=="saveinv"){try{await updateDoc(rr,{paper:+$("#pp").value,phone:$("#ph").value.trim(),addr:$("#ad").value.trim(),foot:$("#ft").value.trim()});toast("تم حفظ بيانات الفاتورة")}catch(x){alert("تعذر الحفظ: "+(x.code||x.message))}}
+    if(a=="saveinv"){try{await updateDoc(rr,{paper:+$("#pp").value,phone:$("#ph").value.trim(),addr:$("#ad").value.trim(),foot:$("#ft").value.trim(),rvn:Math.min(50,Math.max(5,+$("#rv").value||20))});toast("تم حفظ بيانات الفاتورة")}catch(x){alert("تعذر الحفظ: "+(x.code||x.message))}}
     if(a=="autoc"){if(!R.logo)return toast("ارفع الشعار أولاً من الأعلى");const r=await fromLogo(R.logo);if(!r)return toast("تعذر قراءة الشعار");$("#c1").value=r.c1;$("#c2").value=r.c2;pv();toast("اضغط حفظ الألوان لاعتمادها")}
     if(a=="savec"){try{await updateDoc(rr,{c1:$("#c1").value,c2:$("#c2").value});toast("تم حفظ الألوان")}catch(x){alert("تعذر الحفظ: "+(x.code||x.message))}}
     if(a=="su"){const v=$("#nu").value.trim().toLowerCase();if(!/^[a-z0-9._-]{3,}$/.test(v))return toast("اسم المستخدم: حروف إنجليزية وأرقام (3 أحرف على الأقل)");
